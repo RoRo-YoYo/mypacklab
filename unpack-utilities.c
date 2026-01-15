@@ -33,13 +33,10 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   // Set the is_valid field of config to false if the header is invalid
   // or input_len (length of the input_data) is shorter than expected
 
+  
   // Verify that the magic (Address 0-1, 0x0213) and version (Address 2, 0x03) are correct.
   uint16_t magic_verify = 0x0213;
   uint8_t version_verify = 0x03;
-
-
-  uint8_t version_value = 0;
-
   int base = 2;
 
   // Magic
@@ -50,22 +47,31 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   // Version
   uint8_t version_value = input_data[2];
 
-  // Verifying Magic
-  if (magic_value == magic_verify) {
-      config->is_valid = true;
-      printf("Magic is valid. Value is",magic_value,"matches 0x0213 or 531");
+  // Verifying valid length for header; To avoid out of bound access
+  if (input_len >= 20 ) { // Minimal header goes from address 0 - 19, expected length is 20
+    printf("Valid input data length:",input_len);
 
-      // Now, check version
-      if (version_value == version_verify) {
-          config->is_valid = true;
-          printf("Version is valid. Decimal",version_value,"matches 0x0213 or 531");}
-      else {
-          config->is_valid = false;
-          printf("Version is invalid. Decimal",version_value,"do not matches 0x0213 or 531");}
-      }
+    // Verifying Magic
+    if (magic_value == magic_verify) {
+        printf("Magic is valid. Value is",magic_value,"matches 0x0213 or 531");
+
+        // Now, check version and configure true at last if valid
+        if (version_value == version_verify) {
+            config->is_valid = true;
+            printf("Version is valid. Decimal",version_value,"matches 0x0213 or 531");}
+        else {
+            config->is_valid = false;
+            printf("Version is invalid. Decimal",version_value,"do not matches 0x0213 or 531");}
+        }
+    else {
+      config->is_valid = false;
+      printf("Magic is invalid. Decimal",magic_value,"do not matches 0x0213 or 531");}    
+  }  
   else {
     config->is_valid = false;
-    printf("Magic is invalid. Decimal",magic_value,"do not matches 0x0213 or 531");}    
+    printf("Valid input data length:",input_len);
+
+  }
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
   //  many more bytes need to be read from the header.
@@ -98,6 +104,7 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
     input_data[20] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
     input_data[21] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
   }
+
 
 }
 
