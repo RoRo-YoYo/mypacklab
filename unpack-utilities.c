@@ -43,7 +43,7 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   int base = 2;
 
   // Magic
-  uint8_t magic_1st_byte = input_data[0] << 2; ; // Access first address. Shift by 2, going from two bites to four bites with trailing zeros
+  uint8_t magic_1st_byte = input_data[0] << 8; ; // Access first address. Shift by 8, going from two bites to four bites with trailing zeros
   uint8_t magic_2nd_byte = input_data[1]; // Access second address
   uint16_t magic_value = magic_1st_byte + magic_2nd_byte; // Add together to make it 16-bit
 
@@ -69,20 +69,17 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
   //  many more bytes need to be read from the header.
-
-
   config->is_compressed = input_data[3] >> 7; // Take the MSB (7 bit)
   config->is_encrypted = (input_data[3] ^ 191) >> 6; // Mask and take the 6 bit
   config->is_checksummed = (input_data[3] ^ 223) >> 5; // Mask and take the 5 bit
   config->should_continue = (input_data[3] ^ 239) >> 4; // Mask and take the 4 bit
-  config->should_float = (input_data[3] ^ 247) >> 3; // Mask and take the 5 bit
-  config->should_float3 = (input_data[3] ^ 251) >> 3;
-  
-
- 
+  config->should_float = (input_data[3] ^ 247) >> 3; // Mask and take the 3 bit
+  config->should_float3 = (input_data[3] ^ 251) >> 2; // Mask and take the 3 bit
   
   //   Get the length of this stream and the length of the original data.
 
+  config->orig_data_size = (input_data[7] << 64 ) + (input_data[7] << 32 ) + (input_data[6]<< 16) + (input_data[5] << 8) + (input_data[4]); // Left shift to create trailing zero and add up
+  config->orig_data_size = (input_data[16] << 64 ) + (input_data[15] << 32 ) + (input_data[14]<< 16) + (input_data[13] << 8) + (input_data[12]);
   // Pull out the compression dictionary for this stream if Compression? is enabled.
   if (config->is_compressed == true ) {
 
