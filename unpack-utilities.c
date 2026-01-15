@@ -8,7 +8,6 @@
 
 #include "unpack-utilities.h"
 
-
 // --- public functions ---
 
 void error_and_exit(const char* message) {
@@ -25,7 +24,15 @@ void* malloc_and_check(size_t size) {
 }
 
 int bit_to_decimal(){
-  
+uint32_t decimal = 0;
+
+}
+
+int bits_to_decimal(int bit_size, bool big_endian, ){
+
+int my_numbers[5] = {0};
+
+uint32_t decimal = 0;
   
 }
 
@@ -41,7 +48,7 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   uint32_t magic_verify = 0x0213;
   uint32_t version_verify = 0x03;
 
-  int address_place = 0;
+  int address_place = 0; // Big endian
   for (address_place; address_place < 16; ++address_place) {
     if (input_data[address_place] != magic_verify) {
         config->is_valid = false;
@@ -60,17 +67,15 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
   //  many more bytes need to be read from the header.
-  for (address_place; address_place < 32; ++address_place) {
-    int address_place = 31 - address_place; // Starts from MSB (7 bit) while still using i 
-    if (address_place == 7) {
-        if (input_data[address_place] == 1) {
-        config->is_compressed = true;
-        }
-        else {
-        config->is_compressed = true;
-        }
-    }
-  }
+
+  config->is_compressed = input_data[24];
+  config->is_encrypted = input_data[25];
+  config->is_checksummed = input_data[26];
+  config->should_continue = input_data[27];
+  config->should_float = input_data[28];
+  config->should_float3 = input_data[29];
+  
+
  
   
   //   Get the length of this stream and the length of the original data.
