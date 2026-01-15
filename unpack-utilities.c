@@ -82,14 +82,23 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   config->data_size = ((uint64_t)input_data[19] << 56) + ((uint64_t)input_data[18] << 48) + ((uint64_t)input_data[17] << 40) + ((uint64_t)input_data[16] << 32) + ((uint64_t)input_data[15] << 24)+ ((uint64_t)input_data[14] << 16) + ((uint64_t)input_data[13] << 8) + ((uint64_t)input_data[12]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
   
   // Pull out the compression dictionary for this stream if Compression? is enabled.
-  if (config->is_compressed == true ) {
-
-  }
-
-  // Pull out the checksum value for this stream if Checksummed? is enabled.
+  if (config->is_compressed == true ) { // Put value in Address 20, 24, 28, 32 (20-35)
+    for (int i = 0; i < 16 ; ++i) { // Put values by looping
+      input_data[20+i] = config->dictionary_data[0+i];
+    }
+    // Check if checksum is also enabled; 16-bits separated into two bytes (8-bits)
     if (config->is_checksummed == true ) {
-
+      input_data[36] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
+      input_data[37] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
+    }
   }
+
+  // Check if checksum is enabled alone; Pull out the checksum value for this stream if Checksummed? is enabled.
+  if (config->is_checksummed == true ) {
+    input_data[20] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
+    input_data[21] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
+  }
+
 }
 
 uint16_t calculate_checksum(uint8_t* input_data, size_t input_len) {
