@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "unpack-utilities.h"
 
@@ -23,18 +24,6 @@ void* malloc_and_check(size_t size) {
   return pointer;
 }
 
-int bit_to_decimal(){
-uint32_t decimal = 0;
-
-}
-
-int bits_to_decimal(int bit_size, bool big_endian, ){
-
-int my_numbers[5] = {0};
-
-uint32_t decimal = 0;
-  
-}
 
 void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* config) {
 
@@ -44,36 +33,50 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   // Set the is_valid field of config to false if the header is invalid
   // or input_len (length of the input_data) is shorter than expected
 
-  // Verify that the magic (Address 0-1, 0x215) and version (Address 2, 0x03) are correct.
-  uint32_t magic_verify = 0x0213;
-  uint32_t version_verify = 0x03;
-
-  int address_place = 0; // Big endian
-  for (address_place; address_place < 16; ++address_place) {
-    if (input_data[address_place] != magic_verify) {
-        config->is_valid = false;
-        break;}
-    config->is_valid = true;
-  }
+  // Verify that the magic (Address 0-1, 0x0213) and version (Address 2, 0x03) are correct.
+  uint16_t magic_verify = 0x0213;
+  uint8_t version_verify = 0x03;
 
 
-  for (address_place; address_place < 24; ++address_place) {
-    if (input_data[address_place] != version_verify) {
-        config->is_valid = false;
-        break;
-    }
-    config->is_valid = true;
-    }
+  uint8_t version_value = 0;
+
+  int base = 2;
+
+  // Magic
+  uint8_t magic_1st_byte = input_data[0] << 2; ; // Access first address. Shift by 2, going from two bites to four bites with trailing zeros
+  uint8_t magic_2nd_byte = input_data[1]; // Access second address
+  uint16_t magic_value = magic_1st_byte + magic_2nd_byte; // Add together to make it 16-bit
+
+  // Version
+  uint8_t version_value = input_data[2];
+
+  // Verifying Magic
+  if (magic_value == magic_verify) {
+      config->is_valid = true;
+      printf("Magic is valid. Value is",magic_value,"matches 0x0213 or 531");
+
+      // Now, check version
+      if (version_value == version_verify) {
+          config->is_valid = true;
+          printf("Version is valid. Decimal",version_value,"matches 0x0213 or 531");}
+      else {
+          config->is_valid = false;
+          printf("Version is invalid. Decimal",version_value,"do not matches 0x0213 or 531");}
+      }
+  else {
+    config->is_valid = false;
+    printf("Magic is invalid. Decimal",magic_value,"do not matches 0x0213 or 531");}    
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
   //  many more bytes need to be read from the header.
 
-  config->is_compressed = input_data[24];
-  config->is_encrypted = input_data[25];
-  config->is_checksummed = input_data[26];
-  config->should_continue = input_data[27];
-  config->should_float = input_data[28];
-  config->should_float3 = input_data[29];
+
+  config->is_compressed = input_data[3] >> 7; // Take the MSB (7 bit)
+  config->is_encrypted = (input_data[3] ^ 191) >> 6; // Mask and take the 6 bit
+  config->is_checksummed = (input_data[3] ^ 223) >> 5; // Mask and take the 5 bit
+  config->should_continue = (input_data[3] ^ 239) >> 4; // Mask and take the 4 bit
+  config->should_float = (input_data[3] ^ 247) >> 3; // Mask and take the 5 bit
+  config->should_float3 = (input_data[3] ^ 251) >> 3;
   
 
  
