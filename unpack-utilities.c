@@ -79,7 +79,8 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   //   Get the length of this stream and the length of the original data.
 
   config->orig_data_size = ((uint64_t)input_data[11] << 56) + ((uint64_t)input_data[10] << 48) + ((uint64_t)input_data[9] << 40) + ((uint64_t)input_data[8] << 32) + ((uint64_t)input_data[7] << 24)+ ((uint64_t)input_data[6] << 16) + ((uint64_t)input_data[5] << 8) + ((uint64_t)input_data[4]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
-  config->orig_data_size = (input_data[16] << 64 ) + (input_data[15] << 32 ) + (input_data[14]<< 16) + (input_data[13] << 8) + (input_data[12]);
+  config->data_size = ((uint64_t)input_data[19] << 56) + ((uint64_t)input_data[18] << 48) + ((uint64_t)input_data[17] << 40) + ((uint64_t)input_data[16] << 32) + ((uint64_t)input_data[15] << 24)+ ((uint64_t)input_data[14] << 16) + ((uint64_t)input_data[13] << 8) + ((uint64_t)input_data[12]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
+  
   // Pull out the compression dictionary for this stream if Compression? is enabled.
   if (config->is_compressed == true ) {
 
