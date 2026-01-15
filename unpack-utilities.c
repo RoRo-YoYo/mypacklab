@@ -58,7 +58,9 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
         // Now, check version and configure true at last if valid
         if (version_value == version_verify) {
             config->is_valid = true;
-            printf("Version is valid. Decimal",version_value,"matches 0x0213 or 531");}
+            config->header_len = 20;// Set up default header len without conditions (address 0 - 19)
+            printf("Version is valid. Decimal",version_value,"matches 0x0213 or 531. Current header_len is", config->header_len);
+        }
         else {
             config->is_valid = false;
             printf("Version is invalid. Decimal",version_value,"do not matches 0x0213 or 531");}
@@ -70,7 +72,6 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   else {
     config->is_valid = false;
     printf("Valid input data length:",input_len);
-
   }
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
@@ -83,7 +84,6 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   config->should_float3 = (input_data[3] ^ 251) >> 2; // Mask and take the 3 bit
   
   //   Get the length of this stream and the length of the original data.
-
   config->orig_data_size = ((uint64_t)input_data[11] << 56) + ((uint64_t)input_data[10] << 48) + ((uint64_t)input_data[9] << 40) + ((uint64_t)input_data[8] << 32) + ((uint64_t)input_data[7] << 24)+ ((uint64_t)input_data[6] << 16) + ((uint64_t)input_data[5] << 8) + ((uint64_t)input_data[4]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
   config->data_size = ((uint64_t)input_data[19] << 56) + ((uint64_t)input_data[18] << 48) + ((uint64_t)input_data[17] << 40) + ((uint64_t)input_data[16] << 32) + ((uint64_t)input_data[15] << 24)+ ((uint64_t)input_data[14] << 16) + ((uint64_t)input_data[13] << 8) + ((uint64_t)input_data[12]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
   
@@ -92,10 +92,13 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
     for (int i = 0; i < 16 ; ++i) { // Put values by looping
       input_data[20+i] = config->dictionary_data[0+i];
     }
+    config->header_len = 36; // Update header len with compression condition; (Address 0 - 35)
+
     // Check if checksum is also enabled; 16-bits separated into two bytes (8-bits)
     if (config->is_checksummed == true ) {
       input_data[36] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
       input_data[37] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
+      config->header_len = 38; // Update header len with compression and checksum condition; (Address 0 - 37)
     }
   }
 
@@ -103,8 +106,10 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   if (config->is_checksummed == true ) {
     input_data[20] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
     input_data[21] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
+    config->header_len = 22; // Update header len with checksum condition; (Address 0 - 22)
   }
 
+  // Finding length of Header 
 
 }
 
