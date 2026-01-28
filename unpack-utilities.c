@@ -117,18 +117,19 @@ uint16_t calculate_checksum(uint8_t* input_data, size_t input_len) {
   // TODO
   // Calculate a checksum over input_data
   // Return the checksum value
+  int checksum = 0;
 
   // Figure out configuration
-  // If compression and 
-  if ((input_data[3] >> 7 == 1) & input_data[3] ^ 191) {
-    
+  // checksum is enabled, then iterate through the array and add the bytes to the checksum
+  if ((input_data[3] ^ 223) >> 5) {
+    for (int i = 0; i < input_len; i++) {
+      checksum = checksum + input_data[i];}
   }
-  else {
+  else { // Else; return 0
     return 0;
   }
-
-  return 0;
 }
+
 
 uint16_t lfsr_step(uint16_t oldstate) {
 
@@ -136,7 +137,32 @@ uint16_t lfsr_step(uint16_t oldstate) {
   // Calculate the new LFSR state given previous state
   // Return the new LFSR state
 
-  return 0;
+
+  // Find the bits value by position
+  int Bit_By_Position[16];
+  uint16_t bit_value = oldstate;
+  uint16_t position = 15;
+  for (uint16_t i = 0; i < 16; i++) { // Stil works even if reach zero before the loop ends as it would be remainder of 0
+    uint16_t remainder = bit_value % 2; 
+    uint16_t oldstate = bit_value / 2;
+
+    Bit_By_Position[position - i] = remainder; // Since the first remainder is LSB, and so on, it have a little endian like structure
+  }
+
+  // XOR the bits; Result is simply either 1 or 0
+  uint16_t XOR_result = Bit_By_Position[0] ^ Bit_By_Position[6] ^ Bit_By_Position[9] ^ Bit_By_Position[13];
+  XOR_result = XOR_result << 15; // Shift by 15 to make it the MSB
+
+  // Right shift by one bit
+  uint16_t new_state = oldstate >> 1;
+
+  // Set the MSB by the XOR_result. Set using
+  // Set the MSB to 0 by 32767 (0111111111111111)
+  new_state = new_state & 32767;
+  // Then, set the value of XOR to the MSB
+  new_state = new_state | XOR_result;
+
+  return new_state;
 }
 
 void decrypt_data(uint8_t* input_data, size_t input_len,
@@ -192,3 +218,9 @@ void join_float_array_three_stream(uint8_t* input_frac,
 
 }
 
+
+uint16_t init_state = 0b10110101  // example initial state
+
+new_state1 = lfsr_step(init_state)
+new_state2 = lfsr_step(new_state1)
+new_state3 = lfsr_step(new_state2)
