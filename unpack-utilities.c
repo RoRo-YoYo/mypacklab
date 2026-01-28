@@ -37,7 +37,6 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   // Verify that the magic (Address 0-1, 0x0213) and version (Address 2, 0x03) are correct.
   uint16_t magic_verify = 0x0213;
   uint8_t version_verify = 0x03;
-  int base = 2;
 
   // Magic
   uint8_t magic_1st_byte = input_data[0] << 8; ; // Access first address. Shift by 8, going from two bites to four bites with trailing zeros
@@ -49,40 +48,40 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
 
   // Verifying valid length for header; To avoid out of bound access
   if (input_len >= 20 ) { // Minimal header goes from address 0 - 19, expected length is 20
-    printf("Valid input data length:",input_len);
+    printf("Valid input data length: %ld", input_len);
 
     // Verifying Magic
     if (magic_value == magic_verify) {
-        printf("Magic is valid. Value is",magic_value,"matches 0x0213 or 531");
+        printf("Magic is valid. Value is %d matches 0x0213 or 531", magic_value);
 
         // Now, check version and configure true at last if valid
         if (version_value == version_verify) {
             config->is_valid = true;
             config->header_len = 20;// Set up default header len without conditions (address 0 - 19)
-            printf("Version is valid. Decimal",version_value,"matches 0x0213 or 531. Current header_len is", config->header_len);
+            printf("Version is valid. Decimal %d matches 0x0213 or 531. Current header_len is %ld", version_value, config->header_len);
         }
         else {
             config->is_valid = false;
-            printf("Version is invalid. Decimal",version_value,"do not matches 0x0213 or 531");}
+            printf("Version is invalid. Decimal %d do not matches 0x0213 or 531", version_value);}
         }
     else {
       config->is_valid = false;
-      printf("Magic is invalid. Decimal",magic_value,"do not matches 0x0213 or 531");}    
+      printf("Magic is invalid. Decimal %d do not matches 0x0213 or 531", magic_value);}    
   }  
   else {
     config->is_valid = false;
-    printf("Invalid input data length:",input_len);
+    printf("Invalid input data length: %ld", input_len);
   }
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
   //  many more bytes need to be read from the header.
   if (config->is_valid == true) {
     config->is_compressed = input_data[3] >> 7; // Take the MSB (7 bit)
-    config->is_encrypted = (input_data[3] ^ 191) >> 6; // Mask and take the 6 bit
-    config->is_checksummed = (input_data[3] ^ 223) >> 5; // Mask and take the 5 bit
-    config->should_continue = (input_data[3] ^ 239) >> 4; // Mask and take the 4 bit
-    config->should_float = (input_data[3] ^ 247) >> 3; // Mask and take the 3 bit
-    config->should_float3 = (input_data[3] ^ 251) >> 2; // Mask and take the 3 bit
+    config->is_encrypted = (input_data[3] & 64) >> 6; // Mask with 01000000 and take the 6 bit
+    config->is_checksummed = (input_data[3] & 32) >> 5; // Mask with 00100000and take the 5 bit
+    config->should_continue = (input_data[3] & 16) >> 4; // Mask with 00010000 and take the 4 bit
+    config->should_float = (input_data[3] & 8) >> 3; // Mask with 00001000 and take the 3 bit
+    config->should_float3 = (input_data[3] & 4) >> 2; // Mask with 00000100 and take the 3 bit
     
     //   Get the length of this stream and the length of the original data.
     config->orig_data_size = ((uint64_t)input_data[11] << 56) + ((uint64_t)input_data[10] << 48) + ((uint64_t)input_data[9] << 40) + ((uint64_t)input_data[8] << 32) + ((uint64_t)input_data[7] << 24)+ ((uint64_t)input_data[6] << 16) + ((uint64_t)input_data[5] << 8) + ((uint64_t)input_data[4]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
@@ -119,16 +118,16 @@ uint16_t calculate_checksum(uint8_t* input_data, size_t input_len) {
   // Return the checksum value
   uint16_t checksum = 0;
 
+  //#if (input_len < 4) {
+  //  return checksum;
+  //}
+
   // Figure out configuration
   // checksum is enabled, then iterate through the array and add the bytes to the checksum
-  if ((input_data[3] ^ 223) >> 5) {
-    for (int i = 0; i < input_len; i++) {
-      checksum = checksum + input_data[i];}
-    return checksum;  
-  }
-  else { // Else; return 0
-    return checksum;
-  }
+  for (size_t i = 0; i < input_len; i++) {
+      checksum = checksum + (input_data[i]);}
+
+  return checksum;
 }
 
 
@@ -198,7 +197,8 @@ size_t decompress_data(uint8_t* input_data, size_t input_len,
   // Decompress input_data and write result to output_data
   // Return the length of the decompressed data
   for (size_t i = 0; i < input_len; i++) {
-    if ((input_data[i] == 1792) & (i == (input_len-1))) { // If value is an escape byte 0x0700 (1792) and it the last byte; treat it normally
+
+    if ((input_data[i] == 7) & (i == (input_len-1))) { // If value is an escape byte 0x0700 (1792) and it the last byte; treat it normally
         output_data[written_bytes] = input_data[i];
         written_bytes++;
     } 
