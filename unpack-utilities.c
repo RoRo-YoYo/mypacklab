@@ -141,7 +141,6 @@ uint16_t lfsr_step(uint16_t oldstate) {
 
   // Find the bits value by position
   int Bit_By_Position[16];
-  uint16_t new_state = oldstate >> 1;
   uint16_t bit_value = oldstate;
   //uint16_t position = 15; Don't need since index already correspond to the bit position
   for (uint16_t i = 0; i < 16; i++) { // Stil works even if reach zero before the loop ends as it would be remainder of 0
@@ -151,16 +150,13 @@ uint16_t lfsr_step(uint16_t oldstate) {
     Bit_By_Position[i] = remainder; // Since the first remainder is LSB, and so on, it have a little endian like structure
   }
 
+  uint16_t new_state = oldstate >> 1; // Right shift by one bit
+
   // XOR the bits; Result is simply either 1 or 0
   uint16_t XOR_result = Bit_By_Position[0] ^ Bit_By_Position[6] ^ Bit_By_Position[9] ^ Bit_By_Position[13];
   XOR_result = XOR_result << 15; // Shift by 15 to make it the MSB
 
-  // Right shift by one bit
-
-  // Set the MSB by the XOR_result. Set using
-  // Set the MSB to 0 by 32767 (0111111111111111)
-  //new_state = new_state & 32767; DOn't need since already unsigned, so MSB will always be 0 after right shift 
-  // Then, set the value of XOR to the MSB
+  // Set the MSB by the XOR_result. 
   new_state = new_state | XOR_result;
 
   return new_state;
@@ -176,20 +172,57 @@ void decrypt_data(uint8_t* input_data, size_t input_len,
   // Step the LFSR once before encrypting data
   // Apply psuedorandom number with an XOR in little-endian order
   // Beware: input_data may be an odd number of bytes
+  uint16_t new_LFSR_state = lfsr_step(encryption_key);
+  int current_byte = 0;
 
+  for (int i = 0; i < input_len; i++) {
+      if (current_byte == 0) {
+        output_data[i] = input_data[i] ^ (new_LFSR_state & 255) ; // XOR with new_LFSR_state[7:0]. AND Mask by 000000011111111 (255)
+        current_byte = current_byte + 1;}
+
+      else if (current_byte == 1)  {
+        output_data[i] = input_data[i] ^ (new_LFSR_state >> 8) ; // XOR with new_LFSR_state[15:8] vie right shift by 8
+        new_LFSR_state = lfsr_step(encryption_key); // Get another new_LFSR_state
+        current_byte = 0;} // Reset tracker
+  } // If-else should already account for odd number of bytes; output_len not used
 }
 
 size_t decompress_data(uint8_t* input_data, size_t input_len,
                        uint8_t* output_data, size_t output_len,
                        uint8_t* dictionary_data) {
+  uint8_t Repeat_Count;
+  uint8_t Dictionary_Index;
+  size_t written_bytes = 0;
 
   // TODO
   // Decompress input_data and write result to output_data
   // Return the length of the decompressed data
-
-  return 0;
+  for (int i = 0; i < input_len; i++) {
+    if ((input_data[i] == 1792) & (i == (input_len-1))) { // If value is an escape byte 0x0700 (1792) and it the last byte; treat it normally
+        output_data[written_bytes] = input_data[i];
+        written_bytes++;
+    } 
+    else if ((input_data[i] == 1792)) { // Else, if value is an escape byte 
+      i = i + 1; // Go the second byte within the loop; And update the i itselt to avoid duplicating
+      if (input_data[i] == 1792) { // if value is an escape byte, write it to output
+        output_data[written_bytes] = input_data[i];
+        written_bytes++;
+      }
+      else { // It's a repeat output via dictionary
+        Repeat_Count = (input_data[i] >> 4); // Right shift to get input_data[7:4]
+        Dictionary_Index = (input_data[i] & 15); // Get input_data[3:0] via AND Mask by 00001111 (15)
+        for (int j = 0; j < Repeat_Count; j++) { 
+          output_data[written_bytes] = dictionary_data[Dictionary_Index];
+          written_bytes++;
+        }
+      }
+    }
+    else {
+      output_data[written_bytes] = input_data[i]; // Write to output
+    }
+  }  
+  return written_bytes;
 }
-
 void join_float_array(uint8_t* input_signfrac, size_t input_len_bytes_signfrac,
                       uint8_t* input_exp, size_t input_len_bytes_exp,
                       uint8_t* output_data, size_t output_len_bytes) {
