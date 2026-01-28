@@ -197,14 +197,14 @@ size_t decompress_data(uint8_t* input_data, size_t input_len,
   // TODO
   // Decompress input_data and write result to output_data
   // Return the length of the decompressed data
-  for (int i = 0; i < input_len; i++) {
+  for (size_t i = 0; i < input_len; i++) {
     if ((input_data[i] == 1792) & (i == (input_len-1))) { // If value is an escape byte 0x0700 (1792) and it the last byte; treat it normally
         output_data[written_bytes] = input_data[i];
         written_bytes++;
     } 
-    else if ((input_data[i] == 1792)) { // Else, if value is an escape byte 
+    else if ((input_data[i] == 7)) { // Else, if value is an escape byte 
       i = i + 1; // Go the second byte within the loop; And update the i itselt to avoid duplicating
-      if (input_data[i] == 1792) { // if value is an escape byte, write it to output
+      if (input_data[i] == 0) { // if value is an escape byte, write it to output
         output_data[written_bytes] = input_data[i];
         written_bytes++;
       }
@@ -219,10 +219,13 @@ size_t decompress_data(uint8_t* input_data, size_t input_len,
     }
     else {
       output_data[written_bytes] = input_data[i]; // Write to output
+      written_bytes++;
+
     }
   }  
   return written_bytes;
 }
+
 void join_float_array(uint8_t* input_signfrac, size_t input_len_bytes_signfrac,
                       uint8_t* input_exp, size_t input_len_bytes_exp,
                       uint8_t* output_data, size_t output_len_bytes) {
@@ -231,8 +234,48 @@ void join_float_array(uint8_t* input_signfrac, size_t input_len_bytes_signfrac,
   // Combine two streams of bytes, one with signfrac data and one with exp data,
   // into one output stream of floating point data
   // Output bytes are in little-endian order
+  
+  uint8_t sign_bit;
+  int byte_tracker = 1;
+  int output_index = 0;
+  int exp_index = 0;
 
+  for (size_t i = 0; i < input_len_bytes_signfrac ; i++) { 
+    //checkly check
+    if (output_index >= (int)output_len_bytes) {
+      break;}  
+
+    if (byte_tracker == 3) {
+
+      // Clear all but the MSB 
+      sign_bit = (input_signfrac[i] & 128); 
+
+      // Take input_signfrac[i][6:0] via AND mask with 127 (01111111)
+      // Take input_exp[exp_index][0] via AND mark with 1 (000000001). Then shift 7 bits to make it the MSB
+      output_data[output_index] = (input_signfrac[i] & 127) + ((input_exp[exp_index] & 1) << 7);
+    
+      output_index++; // Move to the next byte output
+
+      //check
+      if (output_index >= (int)output_len_bytes) {
+        break;}  
+
+      // Take input_exp[exp_index][7:1] by shifting 1 bit. Add in MSB sign bit
+      output_data[output_index] = sign_bit + (input_exp[exp_index] >> 1);
+
+ 
+      // Update 
+      output_index++; // Move to the next byte output
+      exp_index++;
+      byte_tracker = 1; // Reset
+    }
+    else {
+      output_data[output_index] = input_signfrac[i];
+      output_index++; // Move to the next byte output
+      byte_tracker++;}
+  }           
 }
+
 /* End of mandatory implementation. */
 
 /* Extra credit */
@@ -252,9 +295,3 @@ void join_float_array_three_stream(uint8_t* input_frac,
 
 }
 
-
-//uint16_t init_state = 0b10110101  // example initial state
-
-//uint16_t new_state1 = lfsr_step(init_state)
-//uint16_t new_state2 = lfsr_step(new_state1)
-//uint16_t new_state3 = lfsr_step(new_state2)
