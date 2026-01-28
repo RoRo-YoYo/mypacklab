@@ -39,8 +39,8 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
   uint8_t version_verify = 0x03;
 
   // Magic
-  uint8_t magic_1st_byte = input_data[0] << 8; ; // Access first address. Shift by 8, going from two bites to four bites with trailing zeros
-  uint8_t magic_2nd_byte = input_data[1]; // Access second address
+  uint16_t magic_1st_byte = input_data[0] << 8; ; // Access first address. Shift by 8, going from two bites to four bites with trailing zeros
+  uint16_t magic_2nd_byte = input_data[1]; // Access second address
   uint16_t magic_value = magic_1st_byte + magic_2nd_byte; // Add together to make it 16-bit
 
   // Version
@@ -58,20 +58,20 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
         if (version_value == version_verify) {
             config->is_valid = true;
             config->header_len = 20;// Set up default header len without conditions (address 0 - 19)
-            printf("Version is valid. Decimal %d matches 0x0213 or 531. Current header_len is %ld", version_value, config->header_len);
-        }
+            printf("Version is valid. Decimal %d matches 0x0213 or 531. Current header_len is %ld", version_value, config->header_len);}
         else {
             config->is_valid = false;
             printf("Version is invalid. Decimal %d do not matches 0x0213 or 531", version_value);}
-        }
+    }
     else {
       config->is_valid = false;
       printf("Magic is invalid. Decimal %d do not matches 0x0213 or 531", magic_value);}    
   }  
+  
   else {
     config->is_valid = false;
-    printf("Invalid input data length: %ld", input_len);
-  }
+    printf("Invalid input data length: %ld", input_len);}
+
 
   //  Check which options are set in Flags, set the appropriate fields in the struct, and determine how
   //  many more bytes need to be read from the header.
@@ -86,29 +86,42 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
     //   Get the length of this stream and the length of the original data.
     config->orig_data_size = ((uint64_t)input_data[11] << 56) + ((uint64_t)input_data[10] << 48) + ((uint64_t)input_data[9] << 40) + ((uint64_t)input_data[8] << 32) + ((uint64_t)input_data[7] << 24)+ ((uint64_t)input_data[6] << 16) + ((uint64_t)input_data[5] << 8) + ((uint64_t)input_data[4]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
     config->data_size = ((uint64_t)input_data[19] << 56) + ((uint64_t)input_data[18] << 48) + ((uint64_t)input_data[17] << 40) + ((uint64_t)input_data[16] << 32) + ((uint64_t)input_data[15] << 24)+ ((uint64_t)input_data[14] << 16) + ((uint64_t)input_data[13] << 8) + ((uint64_t)input_data[12]); // Cast into 64-bit to avoid undefine when shifting; Left shift to create trailing zero and add up
-    
-    // Pull out the compression dictionary for this stream if Compression? is enabled.
-    if (config->is_compressed == true ) { // Put value in Address 20, 24, 28, 32 (20-35)
-      for (int i = 0; i < 16 ; ++i) { // Put values by looping
-        input_data[20+i] = config->dictionary_data[0+i];
-      }
-      config->header_len = 36; // Update header len with compression condition; (Address 0 - 35)
-
-      // Check if checksum is also enabled; 16-bits separated into two bytes (8-bits)
-      if (config->is_checksummed == true ) {
-        input_data[36] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
-        input_data[37] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
-        config->header_len = 38; // Update header len with compression and checksum condition; (Address 0 - 37)
-      }
-    }
-
-    // Check if checksum is enabled alone; Pull out the checksum value for this stream if Checksummed? is enabled.
-    if (config->is_checksummed == true ) {
-      input_data[20] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
-      input_data[21] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
-      config->header_len = 22; // Update header len with checksum condition; (Address 0 - 22)
-    }
   }
+
+
+  if (config->is_checksummed == true) { // Check if checksum is enabled alone; Pull out the checksum value for this stream if Checksummed? is enabled. 
+      if (input_len >=22) {
+        input_data[20] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
+        input_data[21] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
+        config->header_len = 22;}} // Update header len with checksum condition; (Address 0 - 22)
+      else {
+            config->is_valid = false;
+            printf("Length is invalid. Current len is %ld; Not enough for do not compression nor checksummed", input_len);}
+
+    // Pull out the compression dictionary for this stream if Compression? is enabled.
+    if (config->is_compressed == true) { // Put value in Address 20, 24, 28, 32 (20-35)
+      if (input_len >=36) {
+        for (int i = 0; i < 16 ; ++i) { // Put values by looping
+          config->dictionary_data[0+i] = input_data[20+i];}
+
+          config->header_len = 36; // Update header len with compression condition; (Address 0 - 35)
+       
+        // Check if both checksum and compressed is enabled; 16-bits separated into two bytes (8-bits)
+        if (config->is_checksummed == true) {
+          if ( input_len >=38) {
+            input_data[36] = (uint8_t)(config->checksum_value >> 8);  // big-endian, right to left; Take the first two byte first; Shift to the right, leaving leading zero, which is dropped when cast into 8-bit 
+            input_data[37] = (uint8_t)(config->checksum_value ^ 65280); // XOR by 1111111100000000 to clear the first two bytes, leaving the last two bytes. Cast ito 8-bit
+            config->header_len = 38; // Update header len with compression and checksum condition; (Address 0 - 37)
+          }
+          else {
+            config->is_valid = false;
+            printf("Length is invalid. Current len is %ld; Not enough for do not compression nor checksummed", input_len); }
+        }
+        } 
+      else {
+          config->is_valid = false;
+          printf("Length is invalid. Current len is %ld; Not enough for do not compression nor checksummed", input_len);}   
+      }
 }
 
 uint16_t calculate_checksum(uint8_t* input_data, size_t input_len) {
