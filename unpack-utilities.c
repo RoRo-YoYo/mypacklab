@@ -117,16 +117,17 @@ uint16_t calculate_checksum(uint8_t* input_data, size_t input_len) {
   // TODO
   // Calculate a checksum over input_data
   // Return the checksum value
-  int checksum = 0;
+  uint16_t checksum = 0;
 
   // Figure out configuration
   // checksum is enabled, then iterate through the array and add the bytes to the checksum
   if ((input_data[3] ^ 223) >> 5) {
     for (int i = 0; i < input_len; i++) {
       checksum = checksum + input_data[i];}
+    return checksum;  
   }
   else { // Else; return 0
-    return 0;
+    return checksum;
   }
 }
 
@@ -140,13 +141,14 @@ uint16_t lfsr_step(uint16_t oldstate) {
 
   // Find the bits value by position
   int Bit_By_Position[16];
+  uint16_t new_state = oldstate >> 1;
   uint16_t bit_value = oldstate;
-  uint16_t position = 15;
+  //uint16_t position = 15; Don't need since index already correspond to the bit position
   for (uint16_t i = 0; i < 16; i++) { // Stil works even if reach zero before the loop ends as it would be remainder of 0
     uint16_t remainder = bit_value % 2; 
-    uint16_t oldstate = bit_value / 2;
+    bit_value = bit_value / 2;
 
-    Bit_By_Position[position - i] = remainder; // Since the first remainder is LSB, and so on, it have a little endian like structure
+    Bit_By_Position[i] = remainder; // Since the first remainder is LSB, and so on, it have a little endian like structure
   }
 
   // XOR the bits; Result is simply either 1 or 0
@@ -154,11 +156,10 @@ uint16_t lfsr_step(uint16_t oldstate) {
   XOR_result = XOR_result << 15; // Shift by 15 to make it the MSB
 
   // Right shift by one bit
-  uint16_t new_state = oldstate >> 1;
 
   // Set the MSB by the XOR_result. Set using
   // Set the MSB to 0 by 32767 (0111111111111111)
-  new_state = new_state & 32767;
+  //new_state = new_state & 32767; DOn't need since already unsigned, so MSB will always be 0 after right shift 
   // Then, set the value of XOR to the MSB
   new_state = new_state | XOR_result;
 
@@ -219,8 +220,8 @@ void join_float_array_three_stream(uint8_t* input_frac,
 }
 
 
-uint16_t init_state = 0b10110101  // example initial state
+//uint16_t init_state = 0b10110101  // example initial state
 
-new_state1 = lfsr_step(init_state)
-new_state2 = lfsr_step(new_state1)
-new_state3 = lfsr_step(new_state2)
+//uint16_t new_state1 = lfsr_step(init_state)
+//uint16_t new_state2 = lfsr_step(new_state1)
+//uint16_t new_state3 = lfsr_step(new_state2)
