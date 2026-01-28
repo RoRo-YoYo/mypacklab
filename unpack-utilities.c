@@ -206,7 +206,7 @@ void decrypt_data(uint8_t* input_data, size_t input_len,
 
       else if (current_byte == 1)  {
         output_data[i] = input_data[i] ^ (new_LFSR_state >> 8) ; // XOR with new_LFSR_state[15:8] vie right shift by 8
-        new_LFSR_state = lfsr_step(encryption_key); // Get another new_LFSR_state
+        new_LFSR_state = lfsr_step(new_LFSR_state); // Get another new_LFSR_state
         current_byte = 0;} // Reset tracker
   } // If-else should already account for odd number of bytes;
 }
@@ -225,22 +225,24 @@ size_t decompress_data(uint8_t* input_data, size_t input_len,
     if (written_bytes >= output_len) { // Boundary check
         break;}
 
-    if ((input_data[i] == 7) & (i == (input_len-1))) { // If value is an escape byte 0x0700 (1792) and it the last byte; treat it normally
+    if ((input_data[i] == 0x07) & (i == (input_len-1))) { // If value is an escape byte 0x0700 (1792) and it the last byte; treat it normally
         output_data[written_bytes] = input_data[i];
         written_bytes++;
     } 
-    else if ((input_data[i] == 7)) { // Else, if value is an escape byte 
+    else if ((input_data[i] == 0x07)) { // Else, if value is an escape byte 
       i = i + 1; // Go the second byte within the loop; And update the i itselt to avoid duplicating
-      if (input_data[i] == 0) { // if value is an escape byte, write it to output
-        output_data[written_bytes] = input_data[i];
+      if (input_data[i] == 0x00) { // if value is an escape byte, write it to output
+        output_data[written_bytes] =  0x07;
         written_bytes++;
       }
       else { // It's a repeat output via dictionary
         Repeat_Count = (input_data[i] >> 4); // Right shift to get input_data[7:4]
         Dictionary_Index = (input_data[i] & 15); // Get input_data[3:0] via AND Mask by 00001111 (15)
         for (int j = 0; j < Repeat_Count; j++) { 
-          output_data[written_bytes] = dictionary_data[Dictionary_Index];
-          written_bytes++;}
+          if (written_bytes < output_len) { // Boundary check
+            output_data[written_bytes] = dictionary_data[Dictionary_Index];
+            written_bytes++;}
+        }
       }
     }
     else {
