@@ -58,10 +58,10 @@ void parse_header(uint8_t* input_data, size_t input_len, packlab_config_t* confi
         if (version_value == version_verify) {
             config->is_valid = true;
             config->header_len = 20;// Set up default header len without conditions (address 0 - 19)
-            printf("Version is valid. Decimal %d matches 0x0213 or 531. Current header_len is %ld\n", version_value, config->header_len);}
+            printf("Version is valid. Decimal %d matches 0x03 0r 3 Current header_len is %ld\n", version_value, config->header_len);}
         else {
             config->is_valid = false;
-            printf("Version is invalid. Decimal %d do not matches 0x0213 or 531\n", version_value);}
+            printf("Version is invalid. Decimal %d do not matches 0x03 or 3\n", version_value);}
     }
     else {
       config->is_valid = false;
@@ -285,7 +285,8 @@ void join_float_array(uint8_t* input_signfrac, size_t input_len_bytes_signfrac,
       //check
       if (output_index >= output_len_bytes) {
         break;}  
-
+      
+      // Continue to the 4th byte
       // Take input_exp[exp_index][7:1] by shifting 1 bit. Add in MSB sign bit
       output_data[output_index] = sign_bit + (input_exp[exp_index] >> 1);
 
@@ -303,6 +304,30 @@ void join_float_array(uint8_t* input_signfrac, size_t input_len_bytes_signfrac,
 
 /* End of mandatory implementation. */
 
+// Helper function 
+
+uint32_t helper_read_bits(uint8_t* src, size_t bit_offset, size_t num_bits, size_t input_len_bytes_frac) {
+    size_t byte_position = bit_offset / 8; // Find first byte; Zer0-index based
+    size_t bit_shift = bit_offset % 8; // Find bit position within the byte
+
+    // Load enough bytes to cover the requested bits (32 bits worth)
+    uint64_t window = 0;
+
+    // Shift each byte into its place 
+    for (size_t i = 0; i < 8; i++) {
+        if (byte_position + i < input_len_bytes_frac) { // Using (uint64_t) cast to prevent bit loss during shift
+        window = window + (((uint64_t)src[byte_position + i]) << (i * 8));}
+    }
+
+    // Shift right so that the bit at 'bit_offset' moves to position 0
+    // Then create mask via AND by shifting 1 to the position, then making the right side into 1s for masking
+    window = (window >> bit_shift) & ((1 << num_bits) - 1) ;
+    return (uint32_t)window;
+    
+}
+
+
+
 /* Extra credit */
 void join_float_array_three_stream(uint8_t* input_frac,
                                    size_t   input_len_bytes_frac,
@@ -318,5 +343,76 @@ void join_float_array_three_stream(uint8_t* input_frac,
   // and one with sign data, into one output stream of floating point data
   // Output bytes are in little-endian order
 
+  // Indexes
+  size_t sign_byte_index = 0;
+  size_t frac_offset = 0;
+  size_t exp_index = 0;
+
+  uint8_t Bit_By_Position[8];
+  uint8_t bit_value;
+
+  uint32_t current_mantissa = 0;
+
+  int sign_bit_tracker = 8;
+  int byte_tracker = 1;
+  int remainder; 
+
+  for (size_t i = 0; i < output_len_bytes; i++ ) {
+
+
+    // If on the fourth byte (little endian), then insert in the {Sign[sign_bit_tracker], exp[i][7:1]}
+    if (byte_tracker == 4) {
+      if (sign_bit_tracker % 8 == 0) { 
+      // Boundary check; Then go through the bits sign
+      if (sign_byte_index < input_len_bytes_sign){
+          bit_value  = input_sign[sign_byte_index];
+          sign_byte_index++;
+          sign_bit_tracker = 0;} else {break;} 
+
+      for (int j = 0; j < 8; j++) { // Stil works even if reach zero before the loop ends as it would be remainder of 0
+          remainder = bit_value % 2; 
+          bit_value = bit_value / 2;
+
+          Bit_By_Position[j] = remainder;} // Since the first remainder is LSB, and so on, it have a "little endian like structure"
+    }
+      if ((i < output_len_bytes ) & (exp_index < input_len_bytes_exp)) {
+        output_data[i] = (Bit_By_Position[sign_bit_tracker] << 7) | (input_exp[exp_index] >> 1);
+       
+        sign_bit_tracker++;
+        exp_index++;
+        frac_offset++;
+        byte_tracker = 1; // reset
+      } else {break;}
+
+      // If we have reach the and of sign byte, go to the next current byte 
+
+    } 
+
+    else if (byte_tracker == 3) {
+      if ((i < output_len_bytes ) & (exp_index < input_len_bytes_exp)) { // Boundary check;
+          // Output Byte 3: Mantissa bits [22:16] (7 bits) + Exponent bit [0]; Shift exp[0] to make it the MSB
+          output_data[i] = ((current_mantissa >> 16) & 0x7F) | ((input_exp[exp_index] & 0x01) << 7);
+          
+          byte_tracker++;
+      } else {break;}
+    }
+    else if (byte_tracker == 2) {
+      if ((i < output_len_bytes) & (exp_index < input_len_bytes_exp)) { // Boundary check;
+        // Output Byte 2: Mantissa bits [15:8]
+        output_data[i] = (current_mantissa >> 8) & 0xFF;
+
+        byte_tracker++;
+      } else {break;}
+    }
+    else if (byte_tracker == 1) { 
+        // At start of each new structure, take the 32-bit mantissa
+        current_mantissa = helper_read_bits(input_frac, frac_offset * 23, 23,input_len_bytes_frac);
+        
+        // Output Byte 1: Mantissa bits [7:0]
+        output_data[i] = current_mantissa & 0xFF;
+       
+        byte_tracker++;
+    }
+  } 
 }
 
